@@ -1,0 +1,53 @@
+# PostgreSQL DB Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: tasksphere-app
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app: postgres
+---
+# FastAPI Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: tasksphere-app
+  labels:
+    app: backend
+spec:
+  type: NodePort
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30800
+      name: http
+  selector:
+    app: backend
+---
+# React Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: tasksphere-app
+  labels:
+    app: frontend
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+      protocol: TCP
+      name: http
+  selector:
+    app: frontend

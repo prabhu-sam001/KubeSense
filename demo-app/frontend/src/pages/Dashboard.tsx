@@ -1,0 +1,256 @@
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { AlertTriangle, Cpu, HardDrive, Wifi, Server, Heart, ShieldAlert, ArrowRight, CheckCircle, Activity, History } from 'lucide-react';
+import { MetricCard } from '../components/cards/MetricCard';
+import { Badge } from '../components/common/Badge';
+import { TimeframeSelector, type TimeframeOption } from '../components/common/TimeframeSelector';
+import { TimeSeriesMultiChart } from '../components/charts/TimeSeriesMultiChart';
+import { useNavigate } from 'react-router-dom';
+import { apiService } from '../services/api';
+import type { Telemetry, RCAReport } from '../types';
+
+interface DashboardProps { telemetry: Telemetry; chaosRca: RCAReport | null; }
+
+export function Dashboard({ telemetry, chaosRca }: DashboardProps) {
+  const navigate = useNavigate();
+  const { metrics, pvc_metrics, net_metrics, alerts, forecasts } = telemetry;
+
+  const [timeframe, setTimeframe] = useState<TimeframeOption>('15m');
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Fetch historical time series based on selected timeframe
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchHistory = async () => {
+      try {
+        const res = await apiService.getMetricsHistory(timeframe);
+        if (isMounted && res?.data && res.data.length > 0) {
+          setHistoryData(res.data);
+        }
+      } catch (err) {
+        console.warn('Could not fetch historical telemetry:', err);
+      } finally {
+        if (isMounted) setIsLoadingHistory(false);
+      }
+    };
+
+    fetchHistory();
+    // Refresh history data every 5 seconds
+    const interval = setInterval(fetchHistory, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [timeframe]);
+
+  const pods = Object.keys(metrics);
+  const totalCpu = pods.reduce((s, p) => s + (metrics[p]?.cpu_cores || 0), 0);
+  const avgStorage = pvc_metrics.length > 0 ? pvc_metrics.reduce((s, p) => s + p.percentage_used, 0) / pvc_metrics.length : 0;
+  const avgLatency = net_metrics.length > 0 ? net_metrics.reduce((s, l) => s + l.latency_ms, 0) / net_metrics.length : 0;
+  const isChaosActive = !!(chaosRca && chaosRca.chaos_active);
+
+  const summaryCards = [
+    { label: 'Running Pods',    value: pods.length || 4, unit: 'pods',   icon: <Server className="h-5 w-5" />,        iconBg: 'bg-brand-50 text-brand-600',   subtitle: 'Cluster workload pods' },
+    { label: 'Healthy Services',value: isChaosActive ? 3 : 4, unit: '',    icon: <Heart className="h-5 w-5" />,         iconBg: isChaosActive ? 'bg-danger-50 text-danger-600' : 'bg-success-50 text-success-600', subtitle: isChaosActive ? '1 service degraded' : 'All services normal', valueColor: isChaosActive ? 'text-danger-600' : 'text-success-600' },
+    { label: 'Total CPU',       value: `${Math.round(totalCpu * 1000)}m`, unit: '', icon: <Cpu className="h-5 w-5" />,       iconBg: 'bg-purple-50 text-purple-600',  subtitle: `${totalCpu.toFixed(4)} cores · ${pods.length} pods` },
+    { label: 'Avg. Storage',    value: avgStorage.toFixed(1), unit: '%', icon: <HardDrive className="h-5 w-5" />,  iconBg: 'bg-cyan-50 text-cyan-600',      subtitle: `${pvc_metrics.length} PVCs monitored`, valueColor: avgStorage > 80 ? 'text-danger-600' : avgStorage > 60 ? 'text-warning-600' : 'text-surface-900' },
+    { label: 'Avg. Latency',    value: avgLatency.toFixed(0), unit: 'ms',icon: <Wifi className="h-5 w-5" />,      iconBg: 'bg-orange-50 text-orange-600',  subtitle: `${net_metrics.length} links`, valueColor: avgLatency > 500 ? 'text-danger-600' : 'text-surface-900' },
+    { label: 'Active Incidents', value: isChaosActive ? alerts.length || 1 : 0, unit: '',  icon: <ShieldAlert className="h-5 w-5" />, iconBg: isChaosActive ? 'bg-danger-50 text-danger-600' : 'bg-success-50 text-success-600', subtitle: isChaosActive ? 'Simulation running' : 'No active incidents', valueColor: isChaosActive ? 'text-danger-600' : 'text-success-600' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Hero */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="solid-card p-8 bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 text-white overflow-hidden relative"
+        style={{ borderRadius: '1.5rem' }}
+      >
+        <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 70% 50%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+        <div className="relative flex items-start justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Activity className="h-5 w-5 opacity-80" />
+              <span className="text-sm font-500 opacity-80 uppercase tracking-wider">KubeSense AI Platform</span>
+            </div>
+            <h2 className="text-3xl font-700 tracking-tight mb-1">Cluster Status</h2>
+            <p className="text-white/70 text-sm mb-4">AI-Powered Kubernetes Observability · Minikube Cluster</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-600 ${isChaosActive ? 'bg-red-500/30 border border-red-400/40' : 'bg-white/20 border border-white/30'}`}>
+                {isChaosActive ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                {isChaosActive ? 'Incident Detected' : 'All Systems Healthy'}
+              </span>
+              <span className="text-white/60 text-sm">{pods.length} pods · {pvc_metrics.length} volumes · {net_metrics.length} links</span>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Root Cause Banner */}
+      {chaosRca && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={`p-5 rounded-2xl flex items-start justify-between gap-4 border ${
+            chaosRca.chaos_active
+              ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-200 text-red-950 shadow-sm shadow-red-500/5'
+              : 'bg-gradient-to-r from-surface-50 to-white border-surface-200 text-surface-800 shadow-sm shadow-surface-900/5'
+          }`}
+          style={{
+            borderLeftWidth: 4,
+            borderLeftColor: chaosRca.chaos_active ? '#DC2626' : '#64748B'
+          }}
+        >
+          <div className="flex gap-3">
+            <div className={`p-2 rounded-xl flex-shrink-0 mt-0.5 ${
+              chaosRca.chaos_active ? 'bg-red-100' : 'bg-surface-100'
+            }`}>
+              <ShieldAlert className={`h-5 w-5 ${
+                chaosRca.chaos_active ? 'text-danger-600' : 'text-surface-500'
+              }`} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-sm font-700 ${
+                  chaosRca.chaos_active ? 'text-danger-800' : 'text-surface-800'
+                }`}>
+                  {chaosRca.chaos_active ? 'Root Cause Analysis — Active Incident' : 'Root Cause Analysis — Last Incident'}
+                </span>
+                <Badge severity={chaosRca.chaos_active ? 'Critical' : 'Info'} size="sm" />
+              </div>
+              <p className={`text-sm font-600 ${
+                chaosRca.chaos_active ? 'text-danger-700' : 'text-surface-750'
+              }`}>{chaosRca.root_cause}</p>
+              <p className={`text-xs mt-1 leading-relaxed ${
+                chaosRca.chaos_active ? 'text-danger-600' : 'text-surface-500'
+              }`}>{chaosRca.message?.slice(0, 160)}...</p>
+              <div className={`flex items-center gap-4 mt-2 text-xs font-500 ${
+                chaosRca.chaos_active ? 'text-danger-600' : 'text-surface-500'
+              }`}>
+                <span>Affected: <strong>{chaosRca.affected_services}</strong></span>
+                <span>Confidence: <strong>{Math.round(chaosRca.confidence_score * 100)}%</strong></span>
+              </div>
+            </div>
+          </div>
+          <button onClick={() => navigate('/insights')}
+            className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 text-white text-sm font-600 rounded-xl transition-colors ${
+              chaosRca.chaos_active ? 'bg-danger-600 hover:bg-danger-700' : 'bg-surface-600 hover:bg-surface-700'
+            }`}>
+            AI Analysis <ArrowRight className="h-4 w-4" />
+          </button>
+        </motion.div>
+      )}
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        {summaryCards.map((c, i) => (
+          <MetricCard key={c.label} {...c} index={i} />
+        ))}
+      </div>
+
+      {/* Timeframe Control Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-surface-200 shadow-card">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-xl bg-brand-50 text-brand-700">
+            <History className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-surface-900">Historical Telemetry Timeline</h3>
+            <p className="text-xs text-surface-400">Continuous time-series metrics persisted with exact UTC timestamps</p>
+          </div>
+        </div>
+
+        <TimeframeSelector selected={timeframe} onChange={setTimeframe} />
+      </div>
+
+      {/* Historical Time-Series Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* CPU Load History */}
+        <div className="solid-card p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-sm font-700 text-surface-800">CPU Load History by Service</h3>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-surface-100 text-surface-600">
+              Window: {timeframe}
+            </span>
+          </div>
+          <p className="text-xs text-surface-400 mb-4">Continuous millicores (m) trendline across microservices with timestamps</p>
+          <TimeSeriesMultiChart
+            data={historyData}
+            series={[
+              { key: 'frontend_cpu', label: 'Frontend', color: '#0D9488' },
+              { key: 'backend_cpu', label: 'Backend', color: '#7C3AED' },
+              { key: 'database_cpu', label: 'Database', color: '#06B6D4' },
+            ]}
+            unit="m"
+            height={240}
+          />
+        </div>
+
+        {/* Storage & Latency History */}
+        <div className="solid-card p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-sm font-700 text-surface-800">Storage & Latency Timeline</h3>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-surface-100 text-surface-600">
+              Window: {timeframe}
+            </span>
+          </div>
+          <p className="text-xs text-surface-400 mb-4">Persistent Volume disk usage (%) and inter-service latency (ms)</p>
+          <TimeSeriesMultiChart
+            data={historyData}
+            series={[
+              { key: 'storage_pct', label: 'Postgres PVC (%)', color: '#F59E0B' },
+              { key: 'latency_ms', label: 'Network Latency (ms)', color: '#E11D48' },
+            ]}
+            height={240}
+          />
+        </div>
+      </div>
+
+      {/* Network Table */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-5 solid-card p-6">
+          <h3 className="text-sm font-700 text-surface-800 mb-1">Network Communication</h3>
+          <p className="text-xs text-surface-400 mb-4">Live service-to-service link telemetry</p>
+          {net_metrics.length === 0 ? (
+            <div className="flex items-center justify-center h-32 text-surface-300 text-sm">No network data yet</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-surface-100">
+                    {['Link', 'Latency', 'Throughput', 'Conns', 'HTTP Rate', 'Loss'].map(h => (
+                      <th key={h} className="pb-3 text-left text-xs font-600 text-surface-400 uppercase tracking-wider pr-4">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-50">
+                  {net_metrics.map((l, i) => (
+                    <tr key={i} className="table-row-hover">
+                      <td className="py-3 pr-4 font-600 text-surface-800 text-xs">{l.source_service}<span className="text-surface-300 mx-1">→</span>{l.target_service}</td>
+                      <td className="py-3 pr-4">
+                        <span className={`text-xs font-600 ${l.latency_ms > 500 ? 'text-danger-600' : l.latency_ms > 200 ? 'text-warning-600' : 'text-success-600'}`}>
+                          {l.latency_ms.toFixed(0)}ms
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 text-xs text-surface-600">{(((l.receive_bytes_sec || 0) + (l.transmit_bytes_sec || 0)) / 1024).toFixed(1)} kB/s</td>
+                      <td className="py-3 pr-4 text-xs text-surface-600">{l.tcp_connections}</td>
+                      <td className="py-3 pr-4 text-xs text-surface-600">{l.http_request_rate?.toFixed(1)} req/s</td>
+                      <td className="py-3">
+                        <span className={`text-xs font-600 ${l.packet_loss_rate > 0 ? 'text-danger-600' : 'text-success-600'}`}>
+                          {l.packet_loss_rate > 0 ? `${l.packet_loss_rate.toFixed(2)}%` : '0%'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
