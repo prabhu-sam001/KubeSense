@@ -6,21 +6,31 @@ By analyzing live data stream telemetry directly from your Kubernetes cluster (v
 
 ---
 
-## 🔍 Platform Preview
+## 🔍 Live Application Screenshots
 
 <div align="center">
-  <img src="docs/images/dashboard.jpg" alt="KubeSense AI Observability Dashboard" width="90%" />
-  <p><em>Real-Time AI Observability & Monitoring Dashboard</em></p>
+  <img src="docs/images/screenshots/dashboard-live.png" alt="KubeSense live dashboard with cluster status and telemetry" width="90%" />
+  <p><em>Live Dashboard — cluster health, incident status, and historical telemetry</em></p>
   
   <br/>
   
-  <img src="docs/images/rca.jpg" alt="Automated Root Cause Analysis" width="90%" />
-  <p><em>Automated Root Cause Analysis (RCA) Engine with Remediation Playbooks</em></p>
+  <img src="docs/images/screenshots/monitoring-live.png" alt="KubeSense live CPU and memory monitoring" width="90%" />
+  <p><em>Monitoring — live CPU, memory, storage, and network telemetry</em></p>
   
   <br/>
   
-  <img src="docs/images/forecast.jpg" alt="Predictive Resource Forecasts" width="90%" />
-  <p><em>Predictive Resource Saturation Forecasting</em></p>
+  <img src="docs/images/screenshots/forecasts-live.png" alt="KubeSense predictive resource forecasts" width="90%" />
+  <p><em>Predictive Forecasts — resource saturation risk and estimated threshold breaches</em></p>
+
+  <br/>
+
+  <img src="docs/images/screenshots/insights-live.png" alt="KubeSense AI root cause insights" width="90%" />
+  <p><em>AI Insights — root-cause analysis and remediation actions</em></p>
+
+  <br/>
+
+  <img src="docs/images/screenshots/chaos-live.png" alt="KubeSense chaos simulation engine" width="90%" />
+  <p><em>Chaos Lab — simulate CPU, storage, and network incidents safely</em></p>
 </div>
 
 ---
